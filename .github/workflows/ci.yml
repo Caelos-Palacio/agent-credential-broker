@@ -33,7 +33,7 @@ jobs:
       run:
         working-directory: assurance/solidity
     env:
-      ASSURANCE_SOLC: ${{ runner.temp }}/broker-assurance-solc
+      ASSURANCE_SOLC: /tmp/broker-assurance-solc-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
