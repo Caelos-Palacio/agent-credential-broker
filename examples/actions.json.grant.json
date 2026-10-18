@@ -1,0 +1,8 @@
+{
+  "taskId": "example-disabled-until-configured-by-custodian",
+  "expiresAt": 0,
+  "maxUses": 10,
+  "actions": {
+    "read_account": {}
+  }
+}

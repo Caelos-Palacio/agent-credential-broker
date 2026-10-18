@@ -1,0 +1,78 @@
+[
+  {
+    "id": "read_account",
+    "credentialRef": "demo_key",
+    "method": "GET",
+    "url": "https://api.example.com/v1/account",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    },
+    "effect": "read",
+    "responseFields": [
+      "id"
+    ],
+    "maxRequestsPerHour": 10,
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "maxLength": 64
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
+    "id": "create_draft",
+    "credentialRef": "demo_key",
+    "method": "POST",
+    "url": "https://api.example.com/v1/drafts",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 120
+        }
+      },
+      "required": [
+        "title"
+      ]
+    },
+    "effect": "write",
+    "responseFields": [
+      "id",
+      "status"
+    ],
+    "maxRequestsPerHour": 5,
+    "outputSchema": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,64}$",
+          "maxLength": 64
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "draft",
+            "created"
+          ],
+          "maxLength": 16
+        }
+      },
+      "required": [
+        "id",
+        "status"
+      ],
+      "additionalProperties": false
+    }
+  }
+]
