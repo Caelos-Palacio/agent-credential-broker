@@ -301,7 +301,9 @@ class ActionBroker:
                 self._emit('intent', action, principal_uid, 'intent', start, mandatory=True, execution_id=execution_id)
             # Audit I/O and human approval can consume TTL or overlap revocation.
             with self.lock:
-                if self.clock()>=plan['expires'] or plan['generation']!=self.generation or plan['credentialVersion'] != self._version(ref):
+                if (self.clock()>=plan['expires'] or plan['generation']!=self.generation
+                        or plan['grantId'] != (self.task_grant.id if self.task_grant else None)
+                        or plan['credentialVersion'] != self._version(ref)):
                     raise PolicyError('PLAN_EXPIRED')
                 self._grant(principal_uid, action, plan['input'])
             def run(secret):
@@ -354,6 +356,9 @@ class ActionBroker:
             else:
                 output = self.vault.use(ref, run)
             with self.lock:
+                if (plan['generation'] != self.generation
+                        or plan['grantId'] != (self.task_grant.id if self.task_grant else None)):
+                    raise PolicyError('AUTHORITY_REVOKED')
                 if plan['credentialVersion'] != self._version(ref):
                     raise PolicyError('CREDENTIAL_REVOKED')
                 self._grant(principal_uid, action, plan['input'])
@@ -366,11 +371,21 @@ class ActionBroker:
                     raise PolicyError('OUTCOME_UNCERTAIN') from None
             else:
                 self._emit('outcome',action,principal_uid,'ok',start,execution_id=execution_id)
-            return {'ok':True, 'output':output}
+            # Linearize disclosure after potentially blocking audit I/O, without
+            # holding this lock during network calls or audit callbacks.
+            with self.lock:
+                if (plan['generation'] != self.generation
+                        or plan['grantId'] != (self.task_grant.id if self.task_grant else None)):
+                    raise PolicyError('AUTHORITY_REVOKED')
+                if plan['credentialVersion'] != self._version(ref):
+                    raise PolicyError('CREDENTIAL_REVOKED')
+                self._grant(principal_uid, action, plan['input'])
+                return {'ok':True, 'output':output}
         except PolicyError:
             if sent and action['effect']=='write':
                 status = 'uncertain'
                 raise PolicyError('OUTCOME_UNCERTAIN') from None
+            status = 'denied'
             raise
         except Exception:
             if sent and action['effect']=='write':

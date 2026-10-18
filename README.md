@@ -13,7 +13,7 @@ Custodio local autocontenido para ejecutar acciones autenticadas **sin entregar 
 - Solo socket Unix 0660, dos solicitudes concurrentes, frame JSON 16 KiB y recepción 4 s. Producción rechaza UID del propio custodio y UID 0 como agente.
 - TLS validado, DNS público fijado, sin redirects/proxies ni reintentos de escrituras; errores constantes y resultados proyectados. Credenciales evidentes y ciertos ecos se bloquean; no se promete DLP universal.
 - Concesión confiable por tarea: UID kernel, acciones, recursos, caducidad y cuota persistente. Producción requiere archivo de concesión junto al catálogo; véase [hardening](docs/hardening.md).
-- Revocación administrativa y versionado de credenciales invalidan planes/resultados obsoletos. Launcher Bubblewrap y laboratorio de controles, sin despliegue de dos UIDs real.
+- Revocación administrativa y versionado de credenciales invalidan planes/resultados obsoletos. Launcher Bubblewrap y laboratorio con dos identidades kernel reales en un namespace efímero; sin despliegue operativo con usuarios persistentes.
 - Auditoría de metadatos, sin solicitudes, respuestas, aliases o secretos; intentos de escritura persistidos antes de usar la credencial, rotación de dos archivos de aproximadamente 256 KiB cada uno. Bloqueo automático 5 minutos; GUI y servidor revocan planes al bloquear.
 - Exportación offline de metadatos para Agent Observer, con esquema estricto e identificadores de evento persistentes. No expone la bóveda ni añade operaciones al transporte del agente.
 
@@ -54,6 +54,10 @@ El transporte solo expone `status`, `capabilities`, `plan` y `execute`. No tiene
 .venv/bin/python -m pip check
 ```
 
-78 pruebas disponibles: 76 de núcleo/transporte aprobadas en la última ejecución y 2 de GUI aprobadas en la QA anterior, omitidas en la ejecución actual porque su display virtual temporal ya no existe. Cubren cifrado/manipulación, permisos/enlaces, replay, TTL, revocación durante aprobación, presupuestos, salida con secretos ficticios, DNS/redirects, Unix real, rechazo por identidad kernel y exportación de auditoría. Las pruebas Unix de éxito inyectan identidad sintética en el constructor: **todavía no prueban un despliegue completo con dos usuarios reales**. No se consultó un proveedor real ni una bóveda existente. La QA visual utilizó Xvfb descargado/extractado únicamente en `/tmp`, sin instalarlo en el sistema; `test_gui.py` se omite salvo habilitación explícita de un display virtual privado.
+96 pruebas disponibles: **94 casos aprobados y 2 de GUI omitidos** en las verificaciones de esta versión. Las demostraciones nuevas incluyen TLS real con certificados sintéticos, 133 frames y 136 salidas de proveedor con semilla fija, carreras de revocación y procesos que mueren durante persistencia. La revisión encontró y corrigió una ventana real que podía devolver resultados después de revocar la sesión, incluida otra durante auditoría final.
+
+El [laboratorio de dos UID](docs/assurance.md) pasó con `SO_PEERCRED` real y constructor de producción, sin bypass de identidad: acceso legítimo, rechazo de UID falsificado, archivos/memoria/código privados y canario IPC. Los clientes parten de fresh exec antes de generar la clave ficticia y sin grupos suplementarios. **No equivale a producción con usuarios persistentes ni verifica GUI/X11/Wayland reales.** La QA visual anterior usó Xvfb privado; no se volvió a ejecutar en esta ronda.
+
+El experimento opcional de [Solidity](docs/solidity-assessment.md) tiene 9 pruebas locales aprobadas de bytecode EVM y control del compilador. No integra blockchain al broker, no despliega contratos ni usa wallets/fondos; no hay prueba formal SMT. Ver [matriz de amenazas, invariantes y reproducciones](docs/assurance.md).
 
 [Gobierno, aislamiento, checkpoints y benchmarks](docs/hardening.md) · [Seguridad y límites](docs/security.md) · [Operaciones](docs/operations.md) · [Investigación y fuentes oficiales](docs/research.md).

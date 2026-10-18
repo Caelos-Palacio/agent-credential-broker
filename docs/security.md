@@ -20,9 +20,9 @@ El servidor limita a dos clientes concurrentes, frame 16 KiB, lectura 4 s y una 
 
 ## Limitaciones verificables
 
-- Sin despliegue entre dos UIDs reales en esta sesión; se probó rechazo por UID kernel y ejecución Unix mediante constructor privado de fixture. No existe bypass remoto/CLI/env.
+- Laboratorio con dos identidades kernel distintas en namespace efímero aprobado: SO_PEERCRED real y constructor de producción, sin bypass; UID1 autorizado y UID0/2 falsificados rechazados. No se ha desplegado con usuarios persistentes. Las fixtures Unix ordinarias mantienen la excepción privada de constructor, separada de ese laboratorio; no existe bypass remoto/CLI/env.
 - GUI Tk renderizada/revisada en Xvfb temporal y probado crear/desbloquear/guardar/bloquear, contraseña incorrecta, tabulación y aprobación/rechazo/caducidad. El display virtual no prueba los permisos o aislamiento del escritorio de producción.
-- Hay un launcher Bubblewrap con entorno limpio y namespaces, probado con canarios ficticios, pero no se ha desplegado ni probado con dos UIDs reales; no configura usuarios, ACL, cgroups o política del escritorio automáticamente. Otro agente con UID del custodio puede leer archivos/procesos y automatizar su escritorio; por ello ese despliegue es inseguro, aunque la API rechace mismo UID.
+- Hay un launcher Bubblewrap con entorno limpio y namespaces, probado con canarios ficticios, y un segundo laboratorio pasó con dos UID kernel reales dentro de un namespace efímero, pero no se ha desplegado con usuarios persistentes; no configura usuarios, ACL, cgroups o política del escritorio automáticamente. Otro agente con UID del custodio puede leer archivos/procesos y automatizar su escritorio; por ello ese despliegue es inseguro, aunque la API rechace mismo UID.
 - Sin auditoría independiente, mlock, hardware-backed keys, OAuth, MFA, rotación de masterpassword, recuperación, attestation o log inalterable. Hay verificación offline contra un checkpoint separado; no instala ni garantiza un testigo externo. Auditoría de escritura fail closed antes de la red y estado incierto si falla después; lecturas best effort. Almacenamiento acotado, sin payloads para replay.
 - Root/kernel/proveedor/custodio comprometidos, software malicioso del propio usuario y efectos ya enviados quedan fuera. El guardado cifrado no sustituye separación de cuentas y sandbox.
 
@@ -35,3 +35,5 @@ Agent Observer es un proyecto separado, pero separar repositorios no crea una fr
 ## Dependencias verificadas
 
 El 16 de octubre de 2026, la API pública de PyPI no reportó vulnerabilidades para cryptography 50.0.2, cffi 2.1.1 y pycparser 3.11; `pip check` no encontró incompatibilidades. Esto no prueba ausencia de vulnerabilidades desconocidas ni sustituye una auditoría. Solo se instalaron wheels en el venv local. Herramientas de empaquetado y Xvfb de QA no son dependencias runtime del custodio.
+
+[Demostraciones reproducibles y límites](assurance.md) documenta TLS sintético, carreras, crash/restart, corpus con semilla y las hipótesis de cada experimento. El punto final de autorización de salida está después de auditoría; revocar después no recupera datos ya entregados.
