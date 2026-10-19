@@ -12,6 +12,8 @@ El laboratorio usa identidades kernel distintas dentro de un namespace de usuari
 
 | Invariante | Demostración | Alcance y límite |
 |---|---|---|
+| Un cambio de significado no se autoriza por conservar un ID | [Pruebas semánticas](semantic-assurance.md): doce mutaciones tipadas, control autorizado y modelo separado contrastado con 288 trazas del Broker real | Dominio sintético finito; no comprensión de lenguaje natural ni verificación formal. |
+| Un plan antiguo no cobra cuota de una concesión nueva ni resucita al reemitirla | Mismas pruebas: reemplazo durante aprobación/reserva y reemisión idéntica | Binding a instancia en memoria; identificador durable conserva el presupuesto. |
 | Un nonce produce como máximo un dispatch | `test_assurance_races`: redención concurrente del mismo plan | Dos threads sincronizados; no idempotencia de nuevas peticiones autorizadas. |
 | Revocación antes del secreto impide uso y red | `test_assurance_races`: barrera en auditoría previa, revocar concesión | `vault.use=0`, `dispatch=0`, plan consumido. |
 | Autoridad vigente hasta entregar el resultado | `test_assurance_races`: invalidación durante upstream y en auditoría final; reemplazo/revocación de concesión y rotación de credencial | Ocho subcasos en auditoría final, lectura denegada y escritura incierta, sin resultado ni replay. |

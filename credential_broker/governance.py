@@ -1,5 +1,6 @@
 """Host-owned task authority and crash-durable attempt quotas; never agent APIs."""
 import fcntl
+import copy
 import hashlib
 import json
 import os
@@ -36,16 +37,21 @@ class TaskGrant:
             encoded = json.dumps(document, sort_keys=True, separators=(',', ':'), allow_nan=False)
             if len(encoded.encode()) > 65536:
                 raise ValueError()
-            self.document = json.loads(encoded)
+            self._document = json.loads(encoded)
             self.id = hashlib.sha256(str(principal_uid).encode() + b':' + encoded.encode()).hexdigest()
             self.uid, self.clock, self.revoked = principal_uid, clock, False
         except Exception:
             raise GovernanceError('GRANT_INVALID') from None
 
+    @property
+    def document(self):
+        """Inspection snapshot; changing policy requires a new host grant."""
+        return copy.deepcopy(self._document)
+
     def check(self, uid, action, value):
-        if self.revoked or uid != self.uid or self.clock() >= self.document['expiresAt']:
+        if self.revoked or uid != self.uid or self.clock() >= self._document['expiresAt']:
             raise GovernanceError('GRANT_EXPIRED')
-        rules = self.document['actions'].get(action)
+        rules = self._document['actions'].get(action)
         if rules is None:
             raise GovernanceError('GRANT_DENIED')
         for field, allowed in rules.items():
