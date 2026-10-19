@@ -54,7 +54,7 @@ El transporte solo expone `status`, `capabilities`, `plan` y `execute`. No tiene
 .venv/bin/python -m pip check
 ```
 
-96 pruebas disponibles: **94 casos aprobados y 2 de GUI omitidos** en las verificaciones de esta versión. Las demostraciones nuevas incluyen TLS real con certificados sintéticos, 133 frames y 136 salidas de proveedor con semilla fija, carreras de revocación y procesos que mueren durante persistencia. La revisión encontró y corrigió una ventana real que podía devolver resultados después de revocar la sesión, incluida otra durante auditoría final.
+102 pruebas disponibles: **100 casos aprobados y 2 de GUI omitidos** en las verificaciones de esta versión. Incluyen TLS real con certificados sintéticos, 133 frames y 136 salidas de proveedor con semilla fija, carreras de revocación y procesos que mueren durante persistencia. La revisión corrigió una ventana que podía devolver resultados después de revocar la sesión, incluida otra durante auditoría final. Las [pruebas semánticas](docs/semantic-assurance.md) contrastan 288 trazas con el Broker real y cubren doce mutaciones tipadas; encontraron y corrigieron consumo de cuota de una concesión nueva por planes antiguos y reactivación de planes al reemitir un permiso idéntico.
 
 El [laboratorio de dos UID](docs/assurance.md) pasó con `SO_PEERCRED` real y constructor de producción, sin bypass de identidad: acceso legítimo, rechazo de UID falsificado, archivos/memoria/código privados y canario IPC. Los clientes parten de fresh exec antes de generar la clave ficticia y sin grupos suplementarios. **No equivale a producción con usuarios persistentes ni verifica GUI/X11/Wayland reales.** La QA visual anterior usó Xvfb privado; no se volvió a ejecutar en esta ronda.
 

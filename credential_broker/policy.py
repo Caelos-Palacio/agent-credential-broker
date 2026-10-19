@@ -185,9 +185,10 @@ class ActionBroker:
             if len(self.plans) >= 128:
                 raise PolicyError('PLAN_BUDGET_EXCEEDED')
             plan_id = secrets.token_urlsafe(32)
+            plan_grant = self.task_grant
             record = {'action': action, 'input': value, 'url': url, 'body': body, 'uid': principal_uid, 'expires': now + 60, 'generation': self.generation,
                       'credentialVersion': self._version(action['credentialRef']),
-                      'grantId': self.task_grant.id if self.task_grant else None}
+                      'grantId': plan_grant.id if plan_grant else None, 'grantObject': plan_grant}
             self.plans[plan_id] = record
         return {'planId': plan_id, 'action': action['id'], 'effect': action['effect'], 'method': action['method'], 'destination': url, 'input': value, 'expiresInSeconds':60, 'requiresApproval':action['effect']=='write'}
 
@@ -274,7 +275,8 @@ class ActionBroker:
         sent = False
         try:
             self._grant(principal_uid, action, plan['input'])
-            if plan['grantId'] != (self.task_grant.id if self.task_grant else None):
+            if (plan['grantObject'] is not self.task_grant
+                    or plan['grantId'] != (self.task_grant.id if self.task_grant else None)):
                 raise PolicyError('GRANT_CHANGED')
             if action['effect'] == 'write':
                 review = {'action':action['id'], 'method':action['method'], 'destination':plan['url'], 'input':copy.deepcopy(plan['input'])}
@@ -283,6 +285,19 @@ class ActionBroker:
             with self.lock:
                 if self.clock() >= plan['expires'] or plan['generation'] != self.generation:
                     raise PolicyError('PLAN_EXPIRED')
+                # Human approval may overlap host authority updates. An old plan
+                # must never reserve an attempt against a replacement grant.
+                reservation_grant = self.task_grant
+                if (plan['grantObject'] is not reservation_grant
+                        or plan['grantId'] != (reservation_grant.id if reservation_grant else None)):
+                    raise PolicyError('GRANT_CHANGED')
+                if plan['credentialVersion'] != self._version(action['credentialRef']):
+                    raise PolicyError('CREDENTIAL_REVOKED')
+                if reservation_grant:
+                    try:
+                        reservation_grant.check(principal_uid, action['id'], plan['input'])
+                    except GovernanceError as exc:
+                        raise PolicyError(str(exc)) from None
                 now = self.clock()
                 ref = action['credentialRef']
                 times = [t for t in self.usage.get(ref, []) if now-t < 3600]
@@ -290,11 +305,11 @@ class ActionBroker:
                     raise PolicyError('REQUEST_BUDGET_EXCEEDED')
                 self.usage[ref] = times + [now]
                 self.count += 1
-                if self.task_grant:
+                if reservation_grant:
                     if not self.quota_store:
                         raise PolicyError('QUOTA_UNAVAILABLE')
                     try:
-                        self.quota_store.consume(self.task_grant, ref, action.get('maxRequestsPerHour', 60))
+                        self.quota_store.consume(reservation_grant, ref, action.get('maxRequestsPerHour', 60))
                     except GovernanceError as exc:
                         raise PolicyError(str(exc)) from None
             if action['effect']=='write':
@@ -302,6 +317,7 @@ class ActionBroker:
             # Audit I/O and human approval can consume TTL or overlap revocation.
             with self.lock:
                 if (self.clock()>=plan['expires'] or plan['generation']!=self.generation
+                        or plan['grantObject'] is not self.task_grant
                         or plan['grantId'] != (self.task_grant.id if self.task_grant else None)
                         or plan['credentialVersion'] != self._version(ref)):
                     raise PolicyError('PLAN_EXPIRED')
@@ -357,6 +373,7 @@ class ActionBroker:
                 output = self.vault.use(ref, run)
             with self.lock:
                 if (plan['generation'] != self.generation
+                        or plan['grantObject'] is not self.task_grant
                         or plan['grantId'] != (self.task_grant.id if self.task_grant else None)):
                     raise PolicyError('AUTHORITY_REVOKED')
                 if plan['credentialVersion'] != self._version(ref):
@@ -375,6 +392,7 @@ class ActionBroker:
             # holding this lock during network calls or audit callbacks.
             with self.lock:
                 if (plan['generation'] != self.generation
+                        or plan['grantObject'] is not self.task_grant
                         or plan['grantId'] != (self.task_grant.id if self.task_grant else None)):
                     raise PolicyError('AUTHORITY_REVOKED')
                 if plan['credentialVersion'] != self._version(ref):
