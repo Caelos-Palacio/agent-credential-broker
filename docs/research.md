@@ -1,6 +1,6 @@
 # Credenciales utilizables por agentes sin entregarles el secreto
 
-Investigación de documentación primaria consultada el 16 de octubre de 2026. Este documento propone un diseño; no instala servicios, inspecciona credenciales locales ni demuestra aislamiento del equipo actual. El broker autocontenido es un proyecto independiente de Enlace y de Agent Observer. Los productos mencionados son antecedentes técnicos, no aplicaciones ni servicios requeridos por el diseño.
+Investigación de documentación primaria consultada el 16 de octubre de 2026. Este documento propone un diseño; no instala servicios, inspecciona credenciales locales ni demuestra aislamiento del equipo actual. El broker autocontenido es un proyecto independiente de otros proyectos y de Agent Observer (ver `audit-export`). Los productos mencionados son antecedentes técnicos, no aplicaciones ni servicios requeridos por el diseño.
 
 ## Conclusión
 
@@ -122,4 +122,4 @@ El proyecto debe incluir su propia UI sensible, almacén cifrado y API de accion
 
 La experiencia propuesta conserva entrada exclusivamente humana y alias opacos, acciones tipadas, autorización externa, TTL, nonce, presupuestos, allowlists de destino y proyección de salida. Ningún endpoint del agente devuelve secretos ni respuestas crudas del proveedor. Esta es una intención de diseño, no una propiedad ya demostrada.
 
-Inspiración declarada: el patrón Secretless y los brokers de autenticación/acciones explicados en las fuentes; separación de identidad y autorización de SPIFFE; y límites de custodia de Vault/KMS. Para observabilidad, [OpenTelemetry](https://opentelemetry.io/docs/concepts/signals/traces/) y [Langfuse](https://langfuse.com/docs/observability/overview) son referencias conceptuales de eventos y trazas, no componentes integrados. El logger de Agent Observer es JSONL propio, no una integración OTel/Langfuse ni parte de esta bóveda. El broker todavía no tiene logger implementado. No se ha copiado ni auditado una implementación criptográfica externa para construir este proyecto.
+Inspiración declarada: el patrón Secretless y los brokers de autenticación/acciones explicados en las fuentes; separación de identidad y autorización de SPIFFE; y límites de custodia de Vault/KMS. Para observabilidad, [OpenTelemetry](https://opentelemetry.io/docs/concepts/signals/traces/) y [Langfuse](https://langfuse.com/docs/observability/overview) son referencias conceptuales de eventos y trazas, no componentes integrados. El logger de Agent Observer es JSONL propio, no una integración OTel/Langfuse ni parte de esta bóveda. El broker exporta metadatos de auditoría (`audit-export`), que Agent Observer puede importar. No se ha copiado ni auditado una implementación criptográfica externa para construir este proyecto.

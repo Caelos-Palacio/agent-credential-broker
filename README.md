@@ -1,63 +1,101 @@
 # Agent Credential Broker
 
-Custodio local autocontenido para ejecutar acciones autenticadas **sin entregar API keys o contraseñas al agente**. Bóveda cifrada propia, administración nativa Tk y transporte Unix Linux. No usa gestores de contraseñas, perfiles de navegador ni cuentas instaladas. Núcleo independiente del agente, terminal, proveedor y gestor de orquestación. Los ejemplos e integraciones son opcionales.
+**Let an AI coding agent call authenticated APIs without ever seeing the API key.**
 
-**Estado: versión experimental implementada, no auditoría de seguridad independiente.** La separación efectiva requiere un agente con UID distinto, sin acceso al escritorio, archivos o procesos del custodio. Las pruebas del proyecto no modifican usuarios del sistema ni usan credenciales reales. La GUI fue renderizada y revisada en un display virtual privado, con datos ficticios; falta validar el aislamiento del escritorio de producción.
+English · [Español](README.es.md)
 
-## Implementado
+> **Status: experimental, not independently audited.** This is a working implementation, not a certified security product. The separation only holds when the agent runs under a different UID, with no access to the custodian's desktop, files or processes. Tests use fictitious credentials only. The GUI was rendered and reviewed in a private virtual display; the isolation of a production desktop is not validated. Read the [security model](docs/security.md) before putting any real secret near it.
 
-- AES-256-GCM con salt/nonce aleatorios y scrypt; archivo propietario 0600, directorio 0700, escritura atómica, rechazo de enlaces y escritores obsoletos.
-- GUI propia para crear/desbloquear/bloquear y guardar credenciales en campos ocultos; nunca muestra/exporta sus valores. La contraseña maestra no entra en argumentos, variables de entorno o stdin.
-- Catálogo del custodio: acciones, destino HTTPS exacto, esquema estricto, campos de respuesta permitidos con `outputSchema` estricto y presupuestos. El agente no aporta URL, headers, código o comandos.
-- Planes de un uso, TTL 60 s, identidad kernel `SO_PEERCRED`, invalidación de sesión. Las escrituras requieren confirmar en la GUI el método, destino y valores reales; máximo 25 s para responder.
-- Solo socket Unix 0660, dos solicitudes concurrentes, frame JSON 16 KiB y recepción 4 s. Producción rechaza UID del propio custodio y UID 0 como agente.
-- TLS validado, DNS público fijado, sin redirects/proxies ni reintentos de escrituras; errores constantes y resultados proyectados. Credenciales evidentes y ciertos ecos se bloquean; no se promete DLP universal.
-- Concesión confiable por tarea: UID kernel, acciones, recursos, caducidad y cuota persistente. Producción requiere archivo de concesión junto al catálogo; véase [hardening](docs/hardening.md).
-- Revocación administrativa y versionado de credenciales invalidan planes/resultados obsoletos. Launcher Bubblewrap y laboratorio con dos identidades kernel reales en un namespace efímero; sin despliegue operativo con usuarios persistentes.
-- Auditoría de metadatos, sin solicitudes, respuestas, aliases o secretos; intentos de escritura persistidos antes de usar la credencial, rotación de dos archivos de aproximadamente 256 KiB cada uno. Bloqueo automático 5 minutos; GUI y servidor revocan planes al bloquear.
-- Exportación offline de metadatos para Agent Observer, con esquema estricto e identificadores de evento persistentes. No expone la bóveda ni añade operaciones al transporte del agente.
+![Animated demo: an agent asks the broker for a named action; the key stays in the broker and only {"id"} comes back.](docs/media/demo.gif)
 
-## Preparar y abrir
+<sub>Every terminal line in the demo is real output of the CLI against the real server, with a fake key and a stub provider. Regenerate: `python3 docs/media/capture.py` (from the project venv), then `python3 docs/media/demo.py` (needs Pillow and ffmpeg).</sub>
 
-Necesita Linux y Python ≥3.12. El núcleo y la auditoría funcionan sin escritorio; Tk solo es necesario para la administración humana por GUI. Usa un intérprete compatible elegido por el operador. No requiere una app, terminal o runtime de proveedor específico.
+## Why
+
+Coding agents run commands, read your files and follow instructions found in web pages and issues. If the API key is in their environment or a config file, a single prompt injection can read it. Password managers and browser profiles do not help: they hand the secret to whoever asks.
+
+The broker inverts that. A local **custodian** process owns an encrypted vault and a catalog of actions you approved (method, exact HTTPS destination, input schema, response fields). The agent can only ask for those actions over a Unix socket. It never supplies a URL, header, code or command, and it never receives the secret. The custodian signs the request, calls the API, and returns only the fields you allowed.
+
+It is independent of the agent, terminal, model provider and orchestration tool. Examples and integrations are optional.
+
+## Quick start
+
+Requires Linux and Python 3.12 or newer. The core and the audit work without a desktop; Tk is needed only for the human GUI.
 
 ```sh
+git clone https://github.com/Caelos-Palacio/agent-credential-broker.git
+cd agent-credential-broker
 python3 -m venv .venv
 .venv/bin/python -m pip install --require-hashes -r requirements.lock -r requirements-build.lock
 .venv/bin/python -m pip install --no-deps --no-build-isolation .
-.venv/bin/python -m credential_broker.cli gui
+.venv/bin/python -m unittest discover -s tests   # 102 tests; 2 GUI tests are skipped without Tk
+.venv/bin/python -m credential_broker.cli gui    # the human custodian creates the vault here
 ```
 
-La GUI puede crear una bóveda en un directorio nuevo. **No inicies un servicio con secretos reales hasta desplegar la separación descrita en [operaciones](docs/operations.md).** Por diseño, el agente que comparte el UID del custodio no puede usar el servicio. No se crearon usuarios/grupos, servicios ni configuración de sandbox automáticamente.
+In the GUI the custodian creates a vault in a new directory, stores a credential under an alias, chooses the agent UID, a socket and an action catalog, and starts the service. The [example catalog](examples/actions.json) uses fictitious endpoints and the alias `demo_key`; copy it to a trusted location, adjust the actions and set it to 0600 outside the agent's environment.
 
-El catálogo de [ejemplo](examples/actions.json) contiene endpoints ficticios y alias `demo_key`, ningún secreto. Copiarlo a la ubicación confiable, ajustar sus acciones y permisos 0600 es una tarea del custodio, fuera del entorno del agente.
+**Do not serve real secrets until you have deployed the separation described in [operations](docs/operations.md).** By design, an agent that shares the custodian's UID cannot use the service. The project never creates users, groups, services or sandbox configuration for you.
 
-## API del agente
+The agent side is four JSON operations over the socket:
 
 ```json
 {"op":"capabilities"}
 {"op":"plan","request":{"action":"read_account","input":{}}}
-{"op":"execute","request":{"planId":"ID_DEVUELTO_POR_PLAN"}}
+{"op":"execute","request":{"planId":"ID_RETURNED_BY_PLAN"}}
 ```
 
 ```sh
-printf '%s\n' '{"op":"capabilities"}' | .venv/bin/python -m credential_broker.cli call --socket /ruta/confiable/broker.sock
+printf '%s\n' '{"op":"capabilities"}' | .venv/bin/python -m credential_broker.cli call --socket /trusted/path/broker.sock
 ```
 
-El transporte solo expone `status`, `capabilities`, `plan` y `execute`. No tiene `getSecret`, desbloqueo, exportación o almacenamiento remoto. El test privado de transporte permite la identidad de la fixture mediante constructor Python; **no existe flag CLI, variable de entorno ni parámetro del agente que habilite ese bypass**. El código de producción debe ser inaccesible para el UID del agente.
+The transport only exposes `status`, `capabilities`, `plan` and `execute`. There is no `getSecret`, unlock, export or remote storage. The private transport test lets a fixture inject an identity through a Python constructor; **no CLI flag, environment variable or agent parameter enables that bypass**, and production code must be unreachable for the agent's UID.
 
-## Validación
+## Features
+
+- **Encrypted vault.** AES-256-GCM with random salt and nonce, scrypt key derivation (PyCA `cryptography`, no home-made crypto). 0600 file, 0700 directory, atomic writes, symlink/hardlink rejection, stale-writer detection.
+- **Human-only administration.** A native Tk GUI creates, unlocks, locks and stores credentials in hidden fields; it never shows or exports values. The master password never travels through arguments, environment variables or stdin.
+- **Action catalog owned by the custodian.** Fixed method and HTTPS destination, strict input schema, allowed response fields with a strict `outputSchema`, and budgets. The agent contributes no URL, headers, code or commands.
+- **Single-use plans.** 60 s TTL, kernel identity via `SO_PEERCRED`, invalidation on session change. Writes require the human to confirm the real method, destination and values in the GUI (25 s to answer).
+- **Hardened transport.** Unix socket 0660, two concurrent requests, 16 KiB frames, 4 s read. Production rejects the custodian's own UID and UID 0 as the agent.
+- **Safe egress.** Validated TLS, pinned public DNS, no redirects or proxies, no automatic retries of writes, constant error codes, projected results. Obvious credentials and some echoes are blocked; universal DLP is not promised.
+- **Trusted per-task grants.** Kernel UID, actions, resources, expiry and a persistent quota. Production needs a grant file next to the catalog; see [hardening](docs/hardening.md).
+- **Revocation.** Administrative revocation and credential versioning invalidate stale plans and results, including during delivery.
+- **Isolation tooling.** A Bubblewrap launcher for the agent and a laboratory with two real kernel identities in an ephemeral namespace. There is no operational deployment with persistent users.
+- **Metadata-only audit.** No requests, responses, aliases or secrets. Write attempts are persisted before the credential is used; two rotating files of about 256 KiB. Auto-lock after 5 minutes; the GUI and the server revoke plans when locking.
+- **Observer export.** Offline export of audit metadata for [Agent Observer](https://github.com/Caelos-Palacio/agent-observer) with a strict schema (v1, or opt-in v2 with correlation and sequence) and persistent event IDs, plus `audit-checkpoint` / `audit-verify` for integrity against a separate reference. It exposes no vault access and adds no operation to the agent transport.
+
+## Security model and limitations
+
+- The custodian, the OS and the provider are inside the trust boundary. A compromised root, kernel, provider or custodian is out of scope, as are effects already sent to the provider.
+- Hiding a key does not limit what the key can do. Create minimally scoped keys at the provider; the catalog narrows what the agent may ask for.
+- **Not independently audited.** No hardware-backed keys, `mlock`, OAuth, MFA, master-password rotation, recovery or tamper-proof log.
+- **Not validated:** a production deployment with persistent users, or a real X11/Wayland desktop. The earlier GUI QA used a private Xvfb and was not repeated in the last round.
+- Python cannot guarantee zeroization of secrets in memory; swap and core dumps are outside the guarantee.
+- Linux only. Isolation uses Linux kernel interfaces and Bubblewrap; equivalent support on macOS or Windows is not claimed.
+
+### Evidence
+
+The suite has 102 tests (100 passing and 2 GUI tests skipped in the recorded verification run): real TLS with synthetic certificates, 133 malformed frames and 136 provider outputs from a fixed seed, revocation races, and processes that die while persisting. [Semantic tests](docs/semantic-assurance.md) compare 288 traces against the real broker and cover twelve typed mutations; they found and fixed quota consumption of a new grant by old plans and plan reactivation when re-issuing an identical permission.
+
+The [two-UID laboratory](docs/assurance.md) passed with real `SO_PEERCRED` and the production constructor, with no identity bypass: legitimate access, rejection of a spoofed UID, private files/memory/code and an IPC canary. It is not the same as production with persistent users. An optional [Solidity experiment](docs/solidity-assessment.md) runs 9 local EVM bytecode tests; it does not integrate any blockchain, deploy contracts or touch wallets, and it is not a formal SMT proof. See the [threat matrix, invariants and reproductions](docs/assurance.md).
+
+Reproduce locally (this is exactly what CI runs):
 
 ```sh
-.venv/bin/python -m unittest discover -s tests -v
+.venv/bin/python scripts/assurance.py --all
 .venv/bin/python -m compileall -q credential_broker
 .venv/bin/python -m pip check
 ```
 
-102 pruebas disponibles: **100 casos aprobados y 2 de GUI omitidos** en las verificaciones de esta versión. Incluyen TLS real con certificados sintéticos, 133 frames y 136 salidas de proveedor con semilla fija, carreras de revocación y procesos que mueren durante persistencia. La revisión corrigió una ventana que podía devolver resultados después de revocar la sesión, incluida otra durante auditoría final. Las [pruebas semánticas](docs/semantic-assurance.md) contrastan 288 trazas con el Broker real y cubren doce mutaciones tipadas; encontraron y corrigieron consumo de cuota de una concesión nueva por planes antiguos y reactivación de planes al reemitir un permiso idéntico.
+## Documentation
 
-El [laboratorio de dos UID](docs/assurance.md) pasó con `SO_PEERCRED` real y constructor de producción, sin bypass de identidad: acceso legítimo, rechazo de UID falsificado, archivos/memoria/código privados y canario IPC. Los clientes parten de fresh exec antes de generar la clave ficticia y sin grupos suplementarios. **No equivale a producción con usuarios persistentes ni verifica GUI/X11/Wayland reales.** La QA visual anterior usó Xvfb privado; no se volvió a ejecutar en esta ronda.
+[Security and limits](docs/security.md) · [Operations](docs/operations.md) · [Governance, isolation, checkpoints and benchmarks](docs/hardening.md) · [Assurance](docs/assurance.md) · [Research and primary sources](docs/research.md). `assurance`, `semantic-assurance`, `solidity-assessment` and `research` are currently in Spanish. Vulnerability reports: see [SECURITY.md](SECURITY.md).
 
-El experimento opcional de [Solidity](docs/solidity-assessment.md) tiene 9 pruebas locales aprobadas de bytecode EVM y control del compilador. No integra blockchain al broker, no despliega contratos ni usa wallets/fondos; no hay prueba formal SMT. Ver [matriz de amenazas, invariantes y reproducciones](docs/assurance.md).
+## Related projects
 
-[Gobierno, aislamiento, checkpoints y benchmarks](docs/hardening.md) · [Seguridad y límites](docs/security.md) · [Operaciones](docs/operations.md) · [Investigación y fuentes oficiales](docs/research.md).
+- [Agent Observer](https://github.com/Caelos-Palacio/agent-observer): imports this broker's audit export and reviews it, with no access to the vault.
+- [Pi Session Workspace](https://github.com/Caelos-Palacio/pi-session-workspace): session navigation, checkpoints and a local mailbox for the Pi coding agent.
+
+## License
+
+[MIT](LICENSE)

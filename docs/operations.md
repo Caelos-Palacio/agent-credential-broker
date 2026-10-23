@@ -1,59 +1,61 @@
-# Operar el custodio
+# Operating the custodian
 
-Este documento describe una preparación que todavía no se ha aplicado a este computador. No hay usuarios, grupos o servicios creados por el proyecto.
+> Spanish original: [es/operations.md](es/operations.md)
 
-## Separación obligatoria
+This describes a setup that has **not** been applied to any machine yet. The project creates no users, groups or services.
 
-1. El custodio ejecuta la GUI en su escritorio confiable. El agente corre bajo otro UID no privilegiado; no puede editar el código, venv, catálogo o bóveda del custodio. No debe tener sudo, capabilities de inspección, acceso a ptrace ni grupos amplios.
-2. Un administrador configura un grupo dedicado compartido únicamente para IPC y un directorio de socket propiedad del custodio, sin escritura para grupo u otros. Ejemplo de permisos: directorio 0750, grupo dedicado; socket 0660. El agente puede atravesar el directorio y conectar al socket, pero no sustituirlo. El custodio debe pertenecer al GID seleccionado en la GUI.
-3. La bóveda permanece en **otro directorio 0700** del custodio, fuera del acceso del agente. No colocar el socket dentro de ese directorio en un despliegue entre UIDs: sus permisos impedirían conectar. El valor inicial de la GUI es una ruta de preparación, que debe cambiarse por el directorio IPC configurado antes de servir.
-4. El sandbox del agente no recibe HOME del custodio, DISPLAY, WAYLAND_DISPLAY, XAUTHORITY, bus D-Bus de sesión, sockets de Docker/SSH/GPG, archivos de configuración ni acceso a su proceso. Deshabilitar capturas, accesibilidad y automatización del escritorio desde el agente, además de shell que pudiera recuperarlos. Los puntos del campo de contraseña no hacen esto por sí solos.
-5. El agente tampoco puede editar el paquete o usar el test privado de constructor para cambiar identidad. No existe un interruptor remoto que relaje estas restricciones.
+## Required separation
 
-Para mayor aislamiento, ejecutar el custodio en otra máquina o VM confiable con un canal limitado; el transporte de esta versión es solo Unix local. No habilitar red/TCP improvisando un proxy: requiere un nuevo modelo de identidad y revisión.
+1. The custodian runs the GUI on its trusted desktop. The agent runs under a different, unprivileged UID; it cannot edit the custodian's code, venv, catalog or vault. It must have no sudo, no inspection capabilities, no ptrace access and no broad groups.
+2. An administrator configures a dedicated group shared only for IPC and a socket directory owned by the custodian, with no write access for group or others. Example permissions: directory 0750 with the dedicated group, socket 0660. The agent can traverse the directory and connect to the socket but cannot replace it. The custodian must belong to the GID selected in the GUI.
+3. The vault stays in **another 0700 directory** of the custodian, out of the agent's reach. Do not place the socket inside that directory in a cross-UID deployment: its permissions would prevent connecting. The GUI's initial value is a staging path; change it to the configured IPC directory before serving.
+4. The agent sandbox receives none of the custodian's HOME, DISPLAY, WAYLAND_DISPLAY, XAUTHORITY, session D-Bus, Docker/SSH/GPG sockets, config files or process access. Disable screen capture, accessibility and desktop automation from the agent, as well as any shell that could recover them. The password field's masking dots do not do this on their own.
+5. The agent also cannot edit the package or use the private test constructor to change identity. There is no remote switch that relaxes these restrictions.
 
-## Entrada humana
+For stronger isolation, run the custodian on another trusted machine or VM with a restricted channel; this release only supports local Unix transport. Do not improvise network/TCP by putting a proxy in front: that needs a new identity model and review.
 
-Ejecutar `.venv/bin/python -m credential_broker.cli gui` como custodio. Crear una bóveda nueva o desbloquearla escribiendo la contraseña maestra; mínimo 12 bytes UTF-8. Guardar el secreto con un alias aprobado. La interfaz limpia los campos después de usarlos y no incluye copiar/exportar. Se admite entrada manual o pegar desde una fuente humana confiable; el broker no lee el portapapeles.
+## Human input
 
-Preparar fuera del agente un catálogo JSON propio 0600. `examples/actions.json` es ilustrativo y no conecta servicios reales. Cada acción fija método, URL HTTPS443, alias, esquema y campos de respuesta. Cada acción exige `outputSchema` estricto: tipos, campos requeridos, límites; los strings necesitan enum o patrón anclado simple y longitud máxima. Preferir estados/identificadores acotados a texto libre. Los únicos valores variables de URL permitidos son placeholders de query codificados; rutas y hosts permanecen fijos. `auth` es `bearer` o `basic`: en Basic la credencial guardada es `usuario:contraseña`.
+Run `.venv/bin/python -m credential_broker.cli gui` as the custodian. Create a new vault or unlock one by typing the master password (minimum 12 UTF-8 bytes). Store the secret under an approved alias. The interface clears the fields after use and has no copy/export. Manual entry or pasting from a trusted human source is supported; the broker never reads the clipboard.
 
-Guardar credenciales está bloqueado mientras el servicio está activo: para sustituir una, bloquear/detener, desbloquear, guardar y reiniciar. Esto invalida los planes preparados con la identidad anterior. Una integración Python propia debe conservar esa misma regla; no modificar entradas del objeto Vault mientras exista un ActionBroker activo.
+Prepare a 0600 JSON catalog outside the agent's reach. `examples/actions.json` is illustrative and connects to no real service. Each action fixes the method, the HTTPS URL on port 443, the alias, the schema and the response fields. Every action requires a strict `outputSchema`: types, required fields and limits; strings need an enum or a simple anchored pattern and a maximum length. Prefer bounded states/identifiers over free text. The only variable URL values allowed are encoded query placeholders; paths and hosts stay fixed. `auth` is `bearer` or `basic`; for Basic, the stored credential is `user:password`.
 
-Especificar UID del agente, GID dedicado, ruta de socket y catálogo en la GUI. Iniciar servicio. El agente pide capacidades, prepara un plan y ejecuta su identificador. La GUI muestra el plan real antes de una escritura; la persona autoriza una vez o rechaza. Sin respuesta antes de 25 s, se rechaza. Los planes caducan en 60 s y no pueden repetirse, incluso tras fallos.
+Saving credentials is blocked while the service is running: to replace one, lock/stop, unlock, save and restart. This invalidates plans prepared with the previous identity. Your own Python integration must keep the same rule; do not modify entries of the Vault object while an ActionBroker is active.
 
-## Bloqueo, parada y recuperación
+In the GUI, specify the agent UID, the dedicated GID, the socket path and the catalog, then start the service. The agent asks for capabilities, prepares a plan and executes its identifier. For a write, the GUI shows the real plan and the person authorizes once or rejects. With no answer within 25 s, it is rejected. Plans expire after 60 s and cannot be replayed, even after failures.
 
-Bloquear y detener revoca planes y cierra la bóveda; cerrar la ventana hace lo mismo. GUI y servidor bloquean tras cinco minutos de inactividad. Una petición HTTPS en curso puede haber llegado al proveedor antes de bloquear; no se deshace una operación ya emitida. Tras timeout de escritura, comprobar el estado por una acción de lectura autorizada: no reintentar a ciegas.
+## Locking, stopping and recovery
 
-La versión no tiene recuperación de contraseña, rotación automática, OAuth, autenticación de hardware ni revocación de una credencial individual desde la GUI. Bloquear el servicio impide usos posteriores. Para editar/eliminar una entrada se precisa una próxima función administrativa o una migración revisada; no usar acceso a los archivos desde el agente.
+Locking and stopping revoke plans and close the vault; closing the window does the same. The GUI and the server lock after five minutes of inactivity. An in-flight HTTPS request may have reached the provider before the lock; an operation already issued is not undone. After a write timeout, check the state through an authorized read action: do not retry blindly.
 
-Las copias de seguridad deben copiar únicamente la bóveda cifrada, con permisos 0600 y contraseña conservada por una vía humana independiente. No versionar archivos de bóveda, catálogos con datos personales o logs. El formato v1 contiene parámetros criptográficos fijos validados antes de derivar claves.
+This version has no password recovery, automatic rotation, OAuth, hardware authentication, or per-credential revocation from the GUI. Locking the service prevents later use. Editing or deleting an entry needs a future administrative feature or a reviewed migration; do not use file access from the agent.
 
-## Auditoría y Observer
+Back up only the encrypted vault, with 0600 permissions and the password kept through a separate human channel. Do not version vault files, catalogs containing personal data, or logs. The v1 format has fixed cryptographic parameters validated before key derivation.
 
-`audit.jsonl` contiene solamente identificador aleatorio de evento, tipo `execute|intent|outcome`, hash truncado del ID de acción, estado `intent|ok|denied|uncertain` y duración acotada. No incluye UID, alias, valores, cuerpos, URLs ni mensajes del proveedor. Rota a `audit.previous.jsonl` al alcanzar 256 KiB; el archivo nuevo puede exceder el umbral en una línea. Antes de una escritura se exige persistir el intento con `fsync` de archivo y directorio, incluida su creación/rotación: ante fallo se devuelve `AUDIT_UNAVAILABLE` sin acceder a la credencial ni a la red. Si falla el registro posterior a enviar la escritura, se devuelve `OUTCOME_UNCERTAIN`, sin respuesta ni reintento. La auditoría de lecturas es best effort.
+## Audit and Observer
 
-La bóveda no depende de Observer. Exportar estos metadatos hacia Observer es un paso separado del custodio, nunca darle acceso al directorio de la bóveda. No leerlo desde el UID del agente. Los hashes de IDs facilitan correlación pero no equivalen a anonimato o auditoría inalterable.
+`audit.jsonl` contains only a random event identifier, the type `execute|intent|outcome`, a truncated hash of the action ID, the status `intent|ok|denied|uncertain` and a bounded duration. It does not contain the UID, alias, values, bodies, URLs or provider messages. It rotates to `audit.previous.jsonl` on reaching 256 KiB; the new file may exceed the threshold by one line. Before a write, the attempt must be persisted with `fsync` of the file and directory, including creation/rotation: on failure it returns `AUDIT_UNAVAILABLE` without touching the credential or the network. If logging after sending the write fails, it returns `OUTCOME_UNCERTAIN` with no response and no retry. Read auditing is best effort.
 
-El custodio puede ejecutar lo siguiente en su entorno confiable, fuera del agente:
+The vault does not depend on Observer. Exporting this metadata to Observer is a separate custodian step, never access to the vault directory. Do not read it from the agent's UID. Action-ID hashes help correlation but are not anonymity or a tamper-proof audit.
+
+The custodian can run this in its trusted environment, outside the agent:
 
 ```sh
 umask 077
-.venv/bin/agent-credential-broker audit-export --directory /ruta/privada/custodio > /ruta/intercambio/broker-audit.jsonl
+.venv/bin/agent-credential-broker audit-export --directory /private/custodian/dir > /exchange/dir/broker-audit.jsonl
 ```
 
-El destino de intercambio debe prepararse con permisos que permitan a Observer leer solamente ese archivo exportado. El comando no configura permisos ni grupos automáticamente. Nunca compartir el directorio privado del custodio.
+Prepare the exchange destination so that Observer can read only that exported file. The command configures no permissions or groups. Never share the custodian's private directory.
 
-El exportador abre únicamente `audit.previous.jsonl` y `audit.jsonl`, sin enlaces ni ancestros symlink; verifica propietario, permisos 0600, un enlace, tipo regular y tamaño máximo 262656 bytes por archivo. Proyecta JSONL exacto: `schemaVersion:1`, `source:"agent-credential-broker"`, `eventId`, `event`, `actionIdHash`, `status`, `durationMs`. Valida todo antes de emitir eventos; ante error produce un código fijo y exit 1, que no debe importarse. El transporte del agente no tiene esta operación.
+The exporter opens only `audit.previous.jsonl` and `audit.jsonl`, with no links or symlinked ancestors; it verifies owner, 0600 permissions, a single link, regular file type and a maximum size of 262656 bytes per file. It projects exact JSONL: `schemaVersion:1`, `source:"agent-credential-broker"`, `eventId`, `event`, `actionIdHash`, `status`, `durationMs`. It validates everything before emitting events; on error it prints a fixed code and exits 1, and that output must not be imported. The agent transport has no such operation.
 
-Los nuevos `eventId` permanecen iguales al copiar y rotar, para deduplicación de importaciones. Registros antiguos sin identificador usan un hash de dispositivo, inode, posición y bytes: estable al rotar el mismo archivo, pero no garantizado al copiarlo. No hay fecha original de ejecución; Observer debe distinguir su hora de importación. IDs y hashes no proporcionan integridad criptográfica contra el custodio o root. La ventana de dos archivos no conserva historial indefinido.
+New `eventId` values stay the same when copied and rotated, so imports can deduplicate. Old records without an identifier use a hash of device, inode, position and bytes: stable when the same file rotates, but not guaranteed when copied. There is no original execution time; Observer must distinguish its own import time. IDs and hashes give no cryptographic integrity against the custodian or root. The two-file window does not retain history indefinitely.
 
-Integración opcional con Agent Observer, desde su checkout y bajo su identidad separada:
+Optional integration with [Agent Observer](https://github.com/Caelos-Palacio/agent-observer), from its checkout and under its separate identity:
 
 ```sh
-node /ruta/agent-observer/src/cli.mjs import-broker-audit --file /ruta/intercambio/broker-audit.jsonl --database /ruta/observer/events.sqlite
-node /ruta/agent-observer/src/cli.mjs review --source broker --database /ruta/observer/events.sqlite
+node /path/to/agent-observer/src/cli.mjs import-broker-audit --file /exchange/dir/broker-audit.jsonl --database /observer/dir/events.sqlite
+node /path/to/agent-observer/src/cli.mjs review --source broker --database /observer/dir/events.sqlite
 ```
 
-Se verificó el recorrido completo con tres eventos sintéticos: tres importados, cero duplicados al repetir, dos ejecuciones y una denegada. No se abrió ninguna bóveda real. Importar no demuestra aislamiento entre UIDs ni convierte una auditoría local en prueba inalterable.
+The full path was verified with three synthetic events: three imported, zero duplicates on repeat, two executions and one denial. No real vault was opened. Importing does not demonstrate isolation between UIDs and does not turn a local audit into tamper-proof evidence.

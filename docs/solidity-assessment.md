@@ -19,13 +19,13 @@ Foundry permite campañas de secuencias aleatorias e invariantes con dimensiones
 
 ## PoC implementada y comprobada
 
-En [assurance/solidity](../assurance/solidity/README.md) hay un contrato MIT pequeño, sin integración con Python ni cadena real. El compilador oficial solc0.8.37 se descargó temporalmente desde el repositorio oficial, con versión/hash fijados y comprobados antes de ejecutar. El programa ejecuta bytecode real en una EVM en memoria con direcciones sintéticas; no firma transacciones ni usa claves. Las instrucciones reproducibles están en el README de la PoC.
+En [assurance/solidity](../assurance/solidity/README.md) hay un contrato MIT pequeño, sin integración con Python ni cadena real. El compilador oficial solc 0.8.37 se descargó temporalmente desde el repositorio oficial, con versión/hash fijados y comprobados antes de ejecutar. El programa ejecuta bytecode real en una EVM en memoria con direcciones sintéticas; no firma transacciones ni usa claves. Las instrucciones reproducibles están en el README de la PoC.
 
 El contrato fija publisher y producer opaco; liga su domain a etiqueta de protocolo, chainId, dirección del contrato y scope opaco. `append` exige `msg.sender` autorizado, scope/producer correctos, secuencia estrictamente creciente, cabeza anterior exacta y digest no nulo. Guarda el historial y actualiza la cabeza sin llamadas externas. No acepta archivos, secretos o JSON crudo y no autoriza acciones del broker.
 
-Ocho tests EVM pasaron, incluyendo256llamadas aleatorias con semilla`0x4123`:84aceptadas y172rechazadas. Se verificaron estado intacto tras rechazo, secuencia/cabeza tras cada llamada, historial, caller incorrecto, domain/producer incorrectos, predecessor obsoleto, duplicados, retrocesos, digest cero, constructor cero, frontera uint64, ABI incompleta y replay entre despliegues. Otro test acepta deliberadamente un digest inventado por el publisher: evidencia concreta de que el contrato no comprueba los eventos de origen.
+Ocho tests EVM pasaron, incluyendo 256 llamadas aleatorias con semilla `0x4123`: 84 aceptadas y 172 rechazadas. Se verificaron estado intacto tras rechazo, secuencia/cabeza tras cada llamada, historial, caller incorrecto, domain/producer incorrectos, predecessor obsoleto, duplicados, retrocesos, digest cero, constructor cero, frontera uint64, ABI incompleta y replay entre despliegues. Otro test acepta deliberadamente un digest inventado por el publisher: evidencia concreta de que el contrato no comprueba los eventos de origen.
 
-Se intentó CHC de verdad. El compilador informó que Z3 no estaba disponible y no pudo iniciar el análisis; se obtuvieron cero aserciones demostradas. `npm run smt` devuelve estado no disponible y exit2. **No hay prueba formal ni despliegue.** Ningún binario compilado o dato de runtime se versiona.
+Se intentó CHC de verdad. El compilador informó que Z3 no estaba disponible y no pudo iniciar el análisis; se obtuvieron cero aserciones demostradas. `npm run smt` devuelve estado no disponible y exit 2. **No hay prueba formal ni despliegue.** Ningún binario compilado o dato de runtime se versiona.
 
 ## Quién observa qué
 
