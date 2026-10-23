@@ -1,0 +1,21 @@
+{
+ "fakeKey": "sk-demo-FAKE-0000-not-a-real-key",
+ "steps": [
+  {
+   "in": "{\"op\":\"capabilities\"}",
+   "out": "{\"ok\":true,\"actions\":[{\"id\":\"read_account\",\"effect\":\"read\",\"method\":\"GET\",\"inputSchema\":{\"type\":\"object\",\"properties\":{}},\"responseFields\":[\"id\"],\"outputSchema\":{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\",\"pattern\":\"^[A-Za-z0-9_-]{1,64}$\",\"maxLength\":64}},\"required\":[\"id\"],\"additionalProperties\":false},\"requiresApproval\":false}]}"
+  },
+  {
+   "in": "{\"op\":\"plan\",\"request\":{\"action\":\"read_account\",\"input\":{}}}",
+   "out": "{\"ok\":true,\"plan\":{\"planId\":\"w4OQn6fvGlHwfgyrAUP0GvlVP3p62vL_-9ytCgzcIRs\",\"action\":\"read_account\",\"effect\":\"read\",\"method\":\"GET\",\"destination\":\"https://api.example.com/v1/account\",\"input\":{},\"expiresInSeconds\":60,\"requiresApproval\":false}}"
+  },
+  {
+   "in": "{\"op\":\"execute\",\"request\":{\"planId\":\"w4OQn6fvGlHwfgyrAUP0GvlVP3p62vL_-9ytCgzcIRs\"}}",
+   "out": "{\"ok\":true,\"output\":{\"id\":\"acct_8213\"}}"
+  }
+ ],
+ "audit": [
+  "{\"schemaVersion\":1,\"source\":\"agent-credential-broker\",\"eventId\":\"05c5927efabc992a190de4b85e427bc14daadf627bf3971daa86d136f314d413\",\"event\":\"outcome\",\"actionIdHash\":\"032f3820b35e90f9\",\"status\":\"ok\",\"durationMs\":0}"
+ ],
+ "providerBody": "{\"id\": \"acct_8213\", \"plan\": \"demo\", \"api_key_echo\": \"sk-demo-FAKE-0000-not-a-real-key\"}"
+}
